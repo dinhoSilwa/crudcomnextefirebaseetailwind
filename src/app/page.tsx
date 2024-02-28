@@ -1,113 +1,135 @@
-import Image from "next/image";
+"use client"
+import { useState, useEffect, FormEvent } from "react";
+import { getDocs, collection, deleteDoc, doc, addDoc, updateDoc } from "firebase/firestore";
+import { database } from "./api/firebaseConfig";
+import { PenIcon, Trash2 } from "lucide-react";
+import { FirebaseError } from "firebase/firebase-error";
+import { useRouter } from "next/router";
+
+interface Contact {
+  id: string;
+  name: string;
+  email: string;
+  telefone: string;
+  msg: string;
+}
 
 export default function Home() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [msg, setMsg] = useState('');
+  const [editForm, setEditForms] = useState(false);
+  const [contatos, setContatos] = useState<Contact[]>([]);
+  const [userIdDb , setuserIdDb ] = useState<string>('');
+
+  const registerDatabase = async (getData: Contact): Promise<boolean> => {
+    try {
+      await addDoc(collection(database, 'contatos'), getData);
+      return true;
+    } catch (error) {
+      console.error("Falha ao conectar ", error);
+      return false;
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      const register = await registerDatabase({ name, email, telefone, msg });
+      if (register) {
+        console.log("Conectado com sucesso!");
+      } else {
+        console.log("Falha ao conectar");
+      }
+    } catch {
+      console.error("Erro ao enviar os dados");
+    }
+  };
+
+  useEffect(() => {
+    async function getContactsForFetch() {
+      try {
+        const querySnapshot = await getDocs(collection(database, 'contatos'));
+        const getContactsBd: Contact[] = [];
+        querySnapshot.forEach((doc) => {
+          getContactsBd.push({ id: doc.id, ...doc.data() } as Contact);
+        });
+        setContatos(getContactsBd);
+        console.log("contatos Capturados com Sucesso")
+      } catch (error) {
+        console.error("Falha ao Capturar Contatos", error)
+      }
+    }
+    getContactsForFetch();
+  }, []);
+
+  const handleIconUpdate = (dados: Contact) => {
+    setEditForms(!editForm);
+    setuserIdDb(dados.id);
+    setName(dados.name);
+    setEmail(dados.email);
+    setTelefone(dados.telefone);
+    setMsg(dados.msg);
+  };
+
+  const handleNewData = async () => {
+    console.log(userIdDb);
+    try {
+      const toUpdateField: Contact = { id: userIdDb, name, email, telefone, msg };
+      const docRef = doc(collection(database, 'contatos'), userIdDb);
+      await updateDoc(docRef, toUpdateField);
+      console.log("Documento atualizado com sucesso");
+    } catch (error) {
+      console.error("Erro ao atualizar documento:", error);
+    }
+  };
+
+  const deleteItemBd = async (dados: Contact) => {
+    try {
+      await deleteDoc(doc(database, "contatos", dados.id));
+      console.log("Documento excluído com sucesso");
+    } catch (error) {
+      console.error("Erro ao excluir documento:", error);
+    }
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <>
+      <main className="flex gap-10 items-center justify-center mt-10">
+        <form className="flex flex-col p-8 bg-zinc-100 w-[40%] space-y-4" onSubmit={handleSubmit}>
+          <legend>CRUD com NextJs e FireBase:</legend>
+          <input defaultValue={name} type="text" placeholder="Digite o nome" className="p-3 rounded-xl" onChange={event => setName(event.target.value)} />
+          <input defaultValue={email} type="text" placeholder="Digite o Email" className="p-3 rounded-xl" onChange={event => setEmail(event.target.value)} />
+          <input defaultValue={telefone} type="tel" placeholder="Digite o telefone " className="p-3 rounded-xl" onChange={event => setTelefone(event.target.value)} />
+          <input defaultValue={msg} type="text" placeholder="Observações" className="p-3 rounded-xl" onChange={event => setMsg(event.target.value)} />
+          {editForm ? <button type="button" className="bg-blue-700 p-4 text-white" onClick={handleNewData}>Editar Dados</button> : <button type="submit" className="bg-green-500 p-4 text-white">Cadastrar</button>}
+        </form>
+
+        <div className="w-[40%] border overflow-y-auto h-[400px]">
+          <header>
+            Lista de contatos :
+          </header>
+          <section>
+            {contatos.map((dados) => (
+              <ul key={dados.id} className="bg-zinc-100 flex flex-col gap-3 p-8 border-zinc-800 border-b-2">
+                <li>Nome: {dados.name}</li>
+                <li>Email: {dados.email}</li>
+                <li>Telefone: {dados.telefone}</li>
+                <li>Mensagem: {dados.msg}</li>
+                <li className="w-full flex gap-2 justify-end cursor-pointer">
+                  <span onClick={() => deleteItemBd(dados)}>
+                    <Trash2 className="text-red-600 hover:text-red-700" />
+                  </span>
+                  <span onClick={() => handleIconUpdate(dados)}>
+                    <PenIcon className="text-zinc-800 hover:text-zinc-900" />
+                  </span>
+                </li>
+              </ul>
+            ))}
+          </section>
         </div>
-      </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-full sm:before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full sm:after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50 text-balance`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
