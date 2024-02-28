@@ -3,7 +3,6 @@ import { useState, useEffect, FormEvent } from "react";
 import { getDocs, collection, deleteDoc, doc, addDoc, updateDoc } from "firebase/firestore";
 import { database } from "./api/firebaseConfig";
 import { PenIcon, Trash2 } from "lucide-react";
-import { FirebaseError } from "firebase/firebase-error";
 import { useRouter } from "next/router";
 
 interface Contact {
